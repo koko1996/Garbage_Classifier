@@ -1,12 +1,13 @@
+import os
 import cv2
 import imutils
 import math as m
 import numpy as np
+from sklearn import svm
 from imutils import paths
 from skimage import feature
 from skimage import exposure
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn import svm
 
 
 
@@ -14,31 +15,36 @@ def train(train_info):
     data = []
     labels = []    
     i=0
+    
+    print("[INFO] Starting to generate the descriptors...")
     for path, label in train_info:
         # extract Histogram of Oriented Gradients from the logo
         img = cv2.imread(path,0)
-        img = cv2.resize(img, (200, 100))
+        img = cv2.resize(img, (128, 64))
         (H, hogImage) = feature.hog(img, orientations=9, pixels_per_cell=(8, 8),cells_per_block=(2, 2), transform_sqrt=True, block_norm="L1",	visualize=True)
+                
+        # visualize the HOG image
         # hogImage = exposure.rescale_intensity(hogImage, out_range=(0, 255))
         # hogImage = hogImage.astype("uint8")
+        # hogImage = cv2.resize(hogImage, (400, 300))
         # cv2.imshow("HOG Image "+str(i), hogImage)
-
+    
         # update the data and labels
-        data.append(H)    
+        data.append(H)
         labels.append(label)
         i=i+1
 
-    print("[INFO] training classifier...")
+    print("[INFO] Training classifier...")
     # KNN
     # model = KNeighborsClassifier(n_neighbors=1)
     # model.fit(data, labels)
 
-    #Create a svm Classifier
+    # Create a svm Classifier
     model = svm.SVC(kernel='linear') # Linear Kernel
     model.fit(data, labels)
 
 
-    print("[INFO] training done...")
+    print("[INFO] Training done...")
     return model
 
 
@@ -48,7 +54,7 @@ def test(test_info,model):
         # load the test image, convert it to grayscale, and resize it to
         # the canonical size
         image = cv2.imread(info[0],0)
-        image = cv2.resize(image, (200, 100))
+        image = cv2.resize(image, (128, 64))
 
         # extract Histogram of Oriented Gradients from the test image and
         # predict the make of the car
@@ -70,44 +76,75 @@ def test(test_info,model):
     return failures
 
 
-
-def retrieve_images(label,cardinality):
+def retrieve_images_per_label(label,cardinality):
     images=[]
-    for i in range(cardinality):
-        images.append(('images/'+label+'/'+label + '_' + str(i) +'.jpg',label))
+    images_path = 'Images/'+label
+    jpg_extension = '.jpg'
+    slash = '/'
+    for filename in os.listdir(images_path)[:cardinality]:
+        if filename.endswith(jpg_extension):
+            images.append((images_path+slash+filename,label))
 
     return images
 
-if __name__ == "__main__":
-    apple_data = (retrieve_images('apple',5)) 
-    banana_data = (retrieve_images('banana',5)) 
-    box_data = (retrieve_images('box',5)) 
-    bulb_data = (retrieve_images('bulb',5)) 
-    can_data = (retrieve_images('can',5))
-    
-    CHUNK_SIZE = 1
+def retrieve_all_images(labels,cardinality):
+    images={}
+    for label in labels:
+        images[label] = retrieve_images_per_label(label,cardinality)
+    return images
+
+def evaluate_model(dataset,chunk_size):
     total_errors=0      # variable to accumulate sum of square of test errors
-    for j in range(1,6):       
+    
+    print("[INFO] Starting evaluation...")
+    for j in range(1,chunk_size):       
         # devide the data to test and train sets 
-        apple_train_data = apple_data[: (CHUNK_SIZE * (j-1))]+ apple_data[ (CHUNK_SIZE * j):]
-        apple_test_data = apple_data[ (CHUNK_SIZE * (j-1)):(CHUNK_SIZE * j)]
-        banana_train_data = banana_data[: (CHUNK_SIZE * (j-1))]+ banana_data[ (CHUNK_SIZE * j):]
-        banana_test_data = banana_data[ (CHUNK_SIZE * (j-1)):(CHUNK_SIZE * j)]
-        box_train_data = box_data[: (CHUNK_SIZE * (j-1))]+ box_data[ (CHUNK_SIZE * j):]
-        box_test_data = box_data[ (CHUNK_SIZE * (j-1)):(CHUNK_SIZE * j)]
-        bulb_train_data = bulb_data[: (CHUNK_SIZE * (j-1))]+ bulb_data[ (CHUNK_SIZE * j):]
-        bulb_test_data = bulb_data[ (CHUNK_SIZE * (j-1)):(CHUNK_SIZE * j)]
-        can_train_data = can_data[: (CHUNK_SIZE * (j-1))]+ can_data[ (CHUNK_SIZE * j):]
-        can_test_data = can_data[ (CHUNK_SIZE * (j-1)):(CHUNK_SIZE * j)]
-
-
-        train_data = apple_train_data + banana_train_data + box_train_data + bulb_train_data + can_train_data
-        test_data = apple_test_data + banana_test_data + box_test_data + bulb_test_data + can_test_data
+        train_data = []
+        test_data = []
+        for label in dataset:
+            train_data += dataset[label][: (chunk_size * (j-1))]+ dataset[label][ (chunk_size * j):]
+            test_data  += dataset[label][ (chunk_size * (j-1)):(chunk_size * j)]
         model = train(train_data)
         total_errors += test(test_data,model)
+    print("[INFO] Finished evaluation...")
+    return total_errors
 
-    print ("Total Error")
-    print (total_errors)
+def classify_garbage(input_image, model):
+    image = input_image.copy()
+    image = cv2.resize(image, (128, 64))
+    (H, hogImage) = feature.hog(image, orientations=9, pixels_per_cell=(8, 8), cells_per_block=(2, 2), transform_sqrt=True, block_norm="L1", visualize=True)
+    label = model.predict(H.reshape(1, -1))[0]
+    ans = "Undefined"
+    if label in ['apple','apple_rotten','banana','banana_rotten']:
+        ans = "Organic"
+    elif label in ['box_cartoon','box_juice','can_chowder','can_soda','can_tomato']:
+        ans = "Recyclable"
+    elif label in ['bulb']:
+        ans = "Non-Recyclable"
+    return ans
+
+
+if __name__ == "__main__":
+    INPUT_SIZE = 36
+    CROSS_CORRELATION_CARDINALITY =  6
+
+    print("[INFO] Starting to read the data...")
+    labels = ['apple','apple_rotten','banana','banana_rotten','box_cartoon','box_juice','bulb','can_chowder','can_soda','can_tomato']
+    complete_data = retrieve_all_images(labels,INPUT_SIZE)
+    print("[INFO] Done reading the data...")
+
+    # print ("Result of Cross correlation", evaluate_model(complete_data, CROSS_CORRELATION_CARDINALITY))
+    
+    train_data = []
+    for label in complete_data:
+        train_data += complete_data[label]
+    # print(train_data)
+
+    # Live Demo
+    model = train(train_data)
+    img = cv2.imread('Images/apple_rotten/apple_rotten_21.jpg',0)
+    cv2.imshow("Input image", img)
+    print(classify_garbage(img,model))
 
     cv2.waitKey(0)
     cv2.destroyAllWindows()
