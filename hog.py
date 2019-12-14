@@ -18,8 +18,8 @@ from imutils import paths
 from skimage import feature
 from skimage import exposure
 import matplotlib.pyplot as plt
+from sklearn import linear_model
 from sklearn.neighbors import KNeighborsClassifier
-
 
 def correct_prediciton(prediction, ground_truth):
     '''
@@ -79,6 +79,14 @@ def train(train_info):
         labels.append(label)
 
     print("[INFO] Training classifier...")
+
+    # # KNN
+    # model = KNeighborsClassifier(n_neighbors=1)
+    # model.fit(data, labels)
+
+    # # Train multi-class logistic regression model
+    # model = linear_model.LogisticRegression()
+    # model.fit(data, labels)
 
     # Create the svm Classifier
     model = svm.SVC(kernel='linear') # Linear Kernel

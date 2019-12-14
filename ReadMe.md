@@ -1,15 +1,31 @@
 # EECS 4422 Computer Vision
 # Garbage Classifier Project Source Code
 
+### Libraries Used:
+```
+os
+cv2
+math
+numpy
+pprint
+random
+imutils
+imutils
+sklearn
+skimage 
+matplotlib
+```
 
 ### How To Run:
 ```
 ipyhton hog.py
 ```
+
 ### How To Test:
 ```
 The evaluate_model function evaluates the model using cross validation method.
 ```
+
 ### Images:
 ```
 Images can be found in the Images folder.
@@ -20,9 +36,9 @@ Images can be found in the Images folder.
 Check the nanahji_project_final_report file for detailed explanation.
 ```
 
-### How To Run The Preporcessor:
+### Preprocessor:
 ```
-ipyhton preporcess.py
+ipyhton preprocess.py
 ```
 
 ### Sources Of The Images:
