@@ -12,11 +12,38 @@ import random
 import imutils
 import math as m
 import numpy as np
+from pprint import pprint
 from sklearn import svm
 from imutils import paths
 from skimage import feature
 from skimage import exposure
+import matplotlib.pyplot as plt
 from sklearn.neighbors import KNeighborsClassifier
+
+
+def correct_prediciton(prediction, ground_truth):
+    '''
+    Descirption: correct_prediciton is a helper function returns true if the prediction
+    is in the correct bin (Organic, recyclable, non_recyclable)
+    Parameters: 
+        - prediction: string representing the prediction label (such as apple, banana)
+        - ground_truth: string representing the ground_truth label (such as apple, banana)
+    returns: true if the prediction is in the correct bin ["Organic","Recyclable","Non-Recyclable"]
+    and false otherwise
+    '''
+    organic = ['apple','apple_rotten','banana','banana_rotten']
+    recyclable = ['box_cartoon','box_juice','can_chowder','can_rotten','can_soda','can_tomato']
+    non_recyclable = ['bulb']
+
+    ans = False
+    if prediction in organic and ground_truth in organic:
+        ans = True
+    elif prediction in recyclable and ground_truth in recyclable:
+        ans = True
+    elif prediction in non_recyclable and ground_truth in non_recyclable:
+        ans = True
+
+    return ans
 
 
 
@@ -74,11 +101,11 @@ def test(test_info,model):
         - test_info: list of tuples containing the path to the image as the first element in the 
         tuple and the ground truth label of that image as the second element in the tuple
     returns: integer that represents the number of misclassifications done by the model on the
-    test data
+    test data.
     '''
 
-    failures = 0                    # variable to accumulate the number of misclassifications
-    
+    number_of_failures = 0                    # variable to accumulate the number of misclassifications
+    errors = []
     for (i, info) in enumerate(test_info):
         # read the image based on it's path
         image = cv2.imread(info[0],0)
@@ -94,8 +121,10 @@ def test(test_info,model):
         # hogImage = hogImage.astype("uint8")
         # cv2.imshow("HOG Image #{}".format(i + 1), hogImage)
         
-        if pred != info[1]:
-            failures += 1
+        # check the predicted bin
+        if not correct_prediciton(pred,info[1]):
+            number_of_failures += 1
+            errors.append((pred,info[1]))
 
             # Uncomment the next part to visualize only the images that are misclassified
             # print("failed: " + info)
@@ -103,7 +132,7 @@ def test(test_info,model):
             # cv2.putText(image, pred.title(), (10, 35), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 3)
             # cv2.imshow("Test Image #{}".format(i + 1), image)
         
-    return failures
+    return (number_of_failures,errors)
 
 
 def retrieve_paths_per_label(label,cardinality):
@@ -141,12 +170,11 @@ def retrieve_all_paths(labels,cardinality):
         images[label] = retrieve_paths_per_label(label,cardinality)
     return images
 
-def evaluate_model(model,dataset,input_size,chunk_size):
+def evaluate_model(dataset,input_size,chunk_size):
     '''
-    Descirption: evaluate_model is a function that evaluates the given model on the given testing data 
+    Descirption: evaluate_model is a function that evaluates the model on the given testing data 
     using cross validation as the evaluation method.
     Parameters: 
-        - model: the model to use for classification
         - dataset: dictonary of label as the key and list of tuples containing the path to the image 
         as the value
         - input_size: number images to use for each category (label)
@@ -156,11 +184,12 @@ def evaluate_model(model,dataset,input_size,chunk_size):
     '''
 
     # shuffle the given data
-    for label, paths in dataset:
+    for label, paths in dataset.items():
         random.shuffle(dataset[label])
 
     total_errors = 0      # variable to accumulate the number of errors
     total_tests = 0
+    error_types = []
     print("[INFO] Starting evaluation...")
     for j in range(1, int(input_size/chunk_size)):       
         # devide the data to test and train sets 
@@ -170,10 +199,12 @@ def evaluate_model(model,dataset,input_size,chunk_size):
             train_data += dataset[label][: (chunk_size * (j-1))]+ dataset[label][ (chunk_size * j):]
             test_data  += dataset[label][ (chunk_size * (j-1)):(chunk_size * j)]
         model = train(train_data)
-        total_errors += test(test_data,model)
+        count, errors = test(test_data,model)
+        error_types = error_types + errors
+        total_errors += count
         total_tests += len(test_data)
-    print("[INFO] Finished evaluation...")
-    return total_errors
+    print("[INFO] Finished evaluation... total_tests:",total_tests)
+    return (total_errors,error_types)
 
 def classify_garbage(input_image, model):
     '''
@@ -200,8 +231,45 @@ def classify_garbage(input_image, model):
     return ans
 
 
+def plot_misclassifications(errors):
+    '''
+    Descirption: plot_misclassifications is a helper function to plot the misclassifications
+    Parameters: 
+        - errors: dictonary that contains the errors and number of misclassifications
+    returns: N/A
+    '''
+    complete_errors = {}
+
+    for predicted, actual in errors:
+        if actual not in complete_errors:
+            complete_errors[actual] = {predicted:1}
+        else:
+            prev_value = complete_errors[actual]
+            if predicted not in prev_value:
+                prev_value[predicted] = 1
+            else:
+                prev_value[predicted] += 1
+    
+    for actual, miss_predicted in complete_errors.items():
+        row = []
+        height = []
+        for predicted, count in miss_predicted.items():
+            row.append(predicted)
+            height.append(count)
+        
+        y_pos = np.arange(len(row))
+        plt.bar(y_pos, height)
+        plt.xticks(y_pos, row)
+        plt.title("Ground Truth Lable: " + actual)
+        plt.xlabel('Incorrectly Predicted Classes')
+        plt.ylabel('Number of Miclassifications')
+        plt.savefig('Misclassifications_'+str(actual)+'.png')
+        plt.clf()
+    pprint (complete_errors)
+
+
 if __name__ == "__main__":
-    INPUT_SIZE = 15
+    INPUT_SIZE = 150
     CROSS_CORRELATION_CARDINALITY =  15
     print("[INFO] Starting to read the data...")
     labels = ['apple','apple_rotten','banana','banana_rotten','box_cartoon','box_juice','bulb','can_chowder','can_rotten','can_soda','can_tomato']
@@ -210,8 +278,10 @@ if __name__ == "__main__":
 
 
     # Evaluate the model using cross validation
-    # print ("Result of Cross correlation", evaluate_model(model, complete_data, INPUT_SIZE, CROSS_CORRELATION_CARDINALITY))
-
+    count_errors,errors = evaluate_model(complete_data, INPUT_SIZE, CROSS_CORRELATION_CARDINALITY)
+    print ("Result of Cross correlation", count_errors)
+    print ("Errors", errors)
+    plot_misclassifications(errors)
 
     # Main part of the code to actually train and use the model
     # train_data = []

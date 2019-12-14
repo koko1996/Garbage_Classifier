@@ -3,6 +3,8 @@ import math as m
 import numpy as np
 
 
+# Code to test Keypoints (Not used in the project)
+
 def getKeypionts(img):
     # Initiate STAR detector
     orb = cv2.ORB_create()

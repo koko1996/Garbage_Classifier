@@ -1,3 +1,12 @@
+###################################################################################################
+# EECS4422 Helper Functions                                                                       #
+# Filename: preprocess.py                                                                         #
+# Author: NANAH JI, KOKO                                                                          #
+# Email: koko96@my.yorku.com                                                                      #
+# Student Number: 215168057                                                                       #
+###################################################################################################
+
+
 import os
 import cv2
 import time
