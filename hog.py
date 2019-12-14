@@ -23,8 +23,8 @@ from sklearn.neighbors import KNeighborsClassifier
 
 def correct_prediciton(prediction, ground_truth):
     '''
-    Descirption: correct_prediciton is a helper function returns true if the prediction
-    is in the correct bin (Organic, recyclable, non_recyclable)
+    Descirption: correct_prediciton is a helper function that returns true if the prediction
+    is in the correct garbage bin (Organic, recyclable, non_recyclable)
     Parameters: 
         - prediction: string representing the prediction label (such as apple, banana)
         - ground_truth: string representing the ground_truth label (such as apple, banana)
@@ -79,10 +79,6 @@ def train(train_info):
         labels.append(label)
 
     print("[INFO] Training classifier...")
-
-    # KNN
-    # model = KNeighborsClassifier(n_neighbors=1)
-    # model.fit(data, labels)
 
     # Create the svm Classifier
     model = svm.SVC(kernel='linear') # Linear Kernel
@@ -209,7 +205,7 @@ def evaluate_model(dataset,input_size,chunk_size):
 def classify_garbage(input_image, model):
     '''
     Descirption: classify_garbage is a helper function classifies an image based on a three-bin 
-    garbage classificaation system. Returns the category the item in the image belongs to 
+    garbage classificaation system. Returns the garbage bin that he item in the image belongs to 
     Parameters: 
         - input_image: cv2 image object to be classified
         - model: the model to use for classification
